@@ -59,7 +59,7 @@ var PointMass = (function () {
     PointMass.prototype.applyPhysics = function (bodies, deltaTime) {
         var _this = this;
         this.velocity.add(p5.Vector.mult(this.accel, deltaTime / 2));
-        var practicalSkips = (numSkips * accuracySlider.value()) / initialAccuracySlider;
+        var practicalSkips = Math.round((numSkips * accuracySlider.value()) / initialAccuracySlider);
         if (this.skips % practicalSkips == 0) {
             this.rotation += 0.1;
             this.prev_positions.push(this.position.copy());

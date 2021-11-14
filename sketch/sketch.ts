@@ -100,8 +100,9 @@ class PointMass {
     // Update vel
     this.velocity.add(p5.Vector.mult(this.accel, deltaTime / 2));
 
-    const practicalSkips =
-      (numSkips * (accuracySlider.value() as number)) / initialAccuracySlider;
+    const practicalSkips = Math.round(
+      (numSkips * (accuracySlider.value() as number)) / initialAccuracySlider
+    );
 
     // Update pos
     if (this.skips % practicalSkips == 0) {
