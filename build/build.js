@@ -59,11 +59,12 @@ var PointMass = (function () {
     PointMass.prototype.applyPhysics = function (bodies, deltaTime) {
         var _this = this;
         this.velocity.add(p5.Vector.mult(this.accel, deltaTime / 2));
-        if (this.skips % numSkips == 0) {
+        var practicalSkips = (numSkips * accuracySlider.value()) / initialAccuracySlider;
+        if (this.skips % practicalSkips == 0) {
             this.rotation += 0.1;
             this.prev_positions.push(this.position.copy());
         }
-        this.skips = (this.skips + 1) % numSkips;
+        this.skips = (this.skips + 1) % practicalSkips;
         this.position.add(p5.Vector.mult(this.velocity, deltaTime));
         this.accel = createVector(0, 0);
         bodies.forEach(function (body) {
