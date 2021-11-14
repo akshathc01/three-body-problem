@@ -14,19 +14,26 @@ var showAccel = false;
 var showForces = false;
 var shiftHeld = false;
 var savePrevious = false;
+var showText = true;
 var selectedInitialState = 0;
 var numInitialStates = 6;
-var numSkips = 10;
-var G = 1.0;
+var numSkips = 1000;
+var G = 10;
 var fudge = 0.01;
 var timeSlider;
-var timeSliderMax = 40;
+var timeSliderMax = 400;
+var initialTimeSlider = 100;
+var accuracySlider;
+var accuracySliderMin = 500;
+var accuracySliderMax = 5000;
+var initialAccuracySlider = 1000;
 var massSliders;
 var PointMass = (function () {
-    function PointMass(c, image, mass, position, velocity, accel, tint) {
+    function PointMass(c, image, mass, position, velocity, accel, tint, radiusScaling) {
         if (velocity === void 0) { velocity = createVector(0, 0); }
         if (accel === void 0) { accel = createVector(0, 0); }
         if (tint === void 0) { tint = null; }
+        if (radiusScaling === void 0) { radiusScaling = 1.0; }
         this.image = image;
         this.mass = mass;
         this.position = position;
@@ -39,10 +46,12 @@ var PointMass = (function () {
         this.alphaColor = color(c.levels);
         this.alphaColor.setAlpha(10);
         this.tint = tint;
+        this.radiusScaling = radiusScaling;
     }
     PointMass.prototype.accelFrom = function (other) {
-        var dist = p5.Vector.sub(other.position, this.position);
-        var invDist = Math.pow((Math.pow(dist.x, 2) + Math.pow(dist.y, 2) + Math.pow(fudge, 2)), -0.5);
+        var scaling = 1 / 10;
+        var dist = p5.Vector.mult(p5.Vector.sub(other.position, this.position), scaling);
+        var invDist = Math.pow((Math.pow(dist.x, 2) + Math.pow(dist.y, 2) + Math.pow(fudge, 2)), -1);
         var mag = G * other.mass * invDist;
         var normalizedDist = dist.copy().normalize();
         return normalizedDist.mult(mag);
@@ -50,8 +59,8 @@ var PointMass = (function () {
     PointMass.prototype.applyPhysics = function (bodies, deltaTime) {
         var _this = this;
         this.velocity.add(p5.Vector.mult(this.accel, deltaTime / 2));
-        this.rotation += 0.1;
         if (this.skips % numSkips == 0) {
+            this.rotation += 0.1;
             this.prev_positions.push(this.position.copy());
         }
         this.skips = (this.skips + 1) % numSkips;
@@ -66,7 +75,7 @@ var PointMass = (function () {
         this.velocity.add(p5.Vector.mult(this.accel, deltaTime / 2));
     };
     PointMass.prototype.radius = function () {
-        return this.mass * 50;
+        return this.mass * 50 * this.radiusScaling;
     };
     PointMass.prototype.overlaps = function (x, y) {
         var mouseVec = createVector(x, y);
@@ -171,10 +180,13 @@ function reset() {
         ];
     }
     else if (selectedInitialState == 5) {
+        var f8Pos = createVector(0.97000436 * 300, -0.24308753 * 300);
+        var f8Vel = createVector(-0.93240737, 0.86473146);
+        var masses = 0.3;
         bodies = [
-            new PointMass(sunTrailColor, sunImage, 2, createVector(width / 2, height / 2), createVector(-2, -2)),
-            new PointMass(earthTrailColor, earthImage, 2, createVector(width / 2 + 250, height / 2 - 50), createVector(2 / 2, 2 / 2)),
-            new PointMass(moonTrailColor, moonImage, 2, createVector(width / 2 - 250, height / 2 + 50), createVector(2 / 2, 2 / 2)),
+            new PointMass(sunTrailColor, sunImage, masses, createVector(width / 2, height / 2), f8Vel, createVector(0, 0), null, 3),
+            new PointMass(earthTrailColor, earthImage, masses, createVector(width / 2 + f8Pos.x, height / 2 - f8Pos.y), p5.Vector.div(f8Vel, -2), createVector(0, 0), null, 3),
+            new PointMass(moonTrailColor, moonImage, masses, createVector(width / 2 - f8Pos.x, height / 2 + f8Pos.y), p5.Vector.div(f8Vel, -2), createVector(0, 0), null, 3),
         ];
     }
 }
@@ -182,10 +194,14 @@ function setup() {
     console.log("🚀 - Setup initialized - P5 is running");
     frameRate(240);
     createCanvas(windowWidth, windowHeight);
-    console.log(sunImage);
-    timeSlider = createSlider(1, timeSliderMax, 1, 0);
-    timeSlider.position(10, 10);
+    timeSlider = createSlider(1, timeSliderMax, initialTimeSlider, 0);
+    timeSlider.position(10, windowHeight - windowHeight / 10);
     timeSlider.style("width", "100px");
+    accuracySlider = createSlider(accuracySliderMin, accuracySliderMax, initialAccuracySlider, 0);
+    accuracySlider.position(10, windowHeight - windowHeight / 6);
+    accuracySlider.style("width", "100px");
+    textFont("Roboto");
+    textSize(16);
     reset();
 }
 function windowResized() {
@@ -193,11 +209,20 @@ function windowResized() {
 }
 function draw() {
     background(10);
+    if (showText) {
+        push();
+        fill(255);
+        stroke(255);
+        text("Instructions:\nP to pause/unpause\nRight arrow to run a single step of the sim\nR to reset sim to original state\nA to show acceleration vectors\nV to show velocity vectors\nF to show force vectors\nS to save trails from previous run\nC to clear trails\n+ to move forward through predefined states\n- to move backward through predefined states\nShift + click to create new planet\nClick + drag on planet to adjust velocity vector\nH to hide this text", 10, 10, windowWidth / 4, windowHeight);
+        pop();
+    }
     push();
     var fps = frameRate();
     fill(255);
     stroke(255);
     text("FPS: " + fps.toFixed(2), 10, height - 10);
+    text("Simulation speed", 10, windowHeight - windowHeight / 10 - 10);
+    text("Simulation accuracy", 10, windowHeight - windowHeight / 6 - 10);
     pop();
     bodies.forEach(function (body) {
         body.renderGlow();
@@ -229,9 +254,12 @@ function draw() {
     }
 }
 function runStep() {
-    var deltaTime = 10 * timeSlider.value();
+    var deltaTime = 10 *
+        timeSlider.value() *
+        (accuracySlider.value() / initialAccuracySlider);
+    var accuracy = 1 / accuracySlider.value();
     for (var i = 0; i < deltaTime; i++) {
-        bodies.forEach(function (body) { return body.applyPhysics(bodies, 0.1); });
+        bodies.forEach(function (body) { return body.applyPhysics(bodies, accuracy); });
     }
 }
 function mousePressed() {
@@ -305,6 +333,9 @@ function keyPressed() {
         bodies.forEach(function (body) {
             body.prev_positions = [];
         });
+    }
+    else if (key === "h") {
+        showText = !showText;
     }
 }
 function keyReleased() {

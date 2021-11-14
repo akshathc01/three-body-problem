@@ -22,18 +22,26 @@ let showAccel: boolean = false;
 let showForces: boolean = false;
 let shiftHeld: boolean = false;
 let savePrevious: boolean = false;
+let showText: boolean = true;
 let selectedInitialState: number = 0;
 const numInitialStates: number = 6;
-const numSkips: number = 10;
+const numSkips: number = 1000;
 
 // Physics vars
-const G: number = 1.0;
+const G: number = 10;
 const fudge: number = 0.01;
 
 // Sliders
 let timeSlider: p5.Element;
-const timeSliderMax = 40;
-let massSliders: [p5.Element];
+const timeSliderMax = 400;
+const initialTimeSlider = 100;
+
+let accuracySlider: p5.Element;
+const accuracySliderMin = 500;
+const accuracySliderMax = 5000;
+const initialAccuracySlider = 1000;
+
+let massSliders: p5.Element[];
 
 class PointMass {
   color: p5.Color;
@@ -46,7 +54,7 @@ class PointMass {
   rotation: number;
   skips: number;
   tint: null | p5.Color;
-
+  radiusScaling: number;
   prev_positions: p5.Vector[];
 
   constructor(
@@ -56,7 +64,8 @@ class PointMass {
     position: p5.Vector,
     velocity: p5.Vector = createVector(0, 0),
     accel: p5.Vector = createVector(0, 0),
-    tint: null | p5.Color = null
+    tint: null | p5.Color = null,
+    radiusScaling: number = 1.0
   ) {
     this.image = image;
     this.mass = mass;
@@ -72,11 +81,16 @@ class PointMass {
     this.alphaColor = color(c.levels);
     this.alphaColor.setAlpha(10);
     this.tint = tint;
+    this.radiusScaling = radiusScaling;
   }
 
   accelFrom(other: PointMass): p5.Vector {
-    const dist = p5.Vector.sub(other.position, this.position);
-    const invDist = (dist.x ** 2 + dist.y ** 2 + fudge ** 2) ** -0.5;
+    const scaling = 1 / 10;
+    const dist = p5.Vector.mult(
+      p5.Vector.sub(other.position, this.position),
+      scaling
+    );
+    const invDist = (dist.x ** 2 + dist.y ** 2 + fudge ** 2) ** -1;
     const mag = G * other.mass * invDist;
     const normalizedDist = dist.copy().normalize();
     return normalizedDist.mult(mag);
@@ -86,9 +100,9 @@ class PointMass {
     // Update vel
     this.velocity.add(p5.Vector.mult(this.accel, deltaTime / 2));
 
-    this.rotation += 0.1;
     // Update pos
     if (this.skips % numSkips == 0) {
+      this.rotation += 0.1;
       this.prev_positions.push(this.position.copy());
     }
     this.skips = (this.skips + 1) % numSkips;
@@ -108,7 +122,7 @@ class PointMass {
   }
 
   radius(): number {
-    return this.mass * 50;
+    return this.mass * 50 * this.radiusScaling;
   }
 
   overlaps(x: number, y: number): boolean {
@@ -321,28 +335,40 @@ function reset() {
       ),
     ];
   } else if (selectedInitialState == 5) {
-    // three body 3
+    // Three body 2
+    const f8Pos = createVector(0.97000436 * 300, -0.24308753 * 300);
+    const f8Vel = createVector(-0.93240737, 0.86473146);
+    const masses = 0.3;
     bodies = [
       new PointMass(
         sunTrailColor,
         sunImage,
-        2,
+        masses,
         createVector(width / 2, height / 2),
-        createVector(-2, -2)
+        f8Vel,
+        createVector(0, 0),
+        null,
+        3
       ),
       new PointMass(
         earthTrailColor,
         earthImage,
-        2,
-        createVector(width / 2 + 250, height / 2 - 50),
-        createVector(2 / 2, 2 / 2)
+        masses,
+        createVector(width / 2 + f8Pos.x, height / 2 - f8Pos.y),
+        p5.Vector.div(f8Vel, -2),
+        createVector(0, 0),
+        null,
+        3
       ),
       new PointMass(
         moonTrailColor,
         moonImage,
-        2,
-        createVector(width / 2 - 250, height / 2 + 50),
-        createVector(2 / 2, 2 / 2)
+        masses,
+        createVector(width / 2 - f8Pos.x, height / 2 + f8Pos.y),
+        p5.Vector.div(f8Vel, -2),
+        createVector(0, 0),
+        null,
+        3
       ),
     ];
   }
@@ -354,10 +380,22 @@ function setup() {
   frameRate(240);
   createCanvas(windowWidth, windowHeight);
 
-  console.log(sunImage);
-  timeSlider = createSlider(1, timeSliderMax, 1, 0);
-  timeSlider.position(10, 10);
+  timeSlider = createSlider(1, timeSliderMax, initialTimeSlider, 0);
+  timeSlider.position(10, windowHeight - windowHeight / 10);
   timeSlider.style("width", "100px");
+
+  accuracySlider = createSlider(
+    accuracySliderMin,
+    accuracySliderMax,
+    initialAccuracySlider,
+    0
+  );
+  accuracySlider.position(10, windowHeight - windowHeight / 6);
+  accuracySlider.style("width", "100px");
+
+  textFont("Roboto");
+  textSize(16);
+
   reset();
 }
 
@@ -368,11 +406,30 @@ function windowResized() {
 function draw() {
   background(10);
 
+  // Print instructions
+  if (showText) {
+    push();
+    fill(255);
+    stroke(255);
+    text(
+      "Instructions:\nP to pause/unpause\nRight arrow to run a single step of the sim\nR to reset sim to original state\nA to show acceleration vectors\nV to show velocity vectors\nF to show force vectors\nS to save trails from previous run\nC to clear trails\n+ to move forward through predefined states\n- to move backward through predefined states\nShift + click to create new planet\nClick + drag on planet to adjust velocity vector\nH to hide this text",
+      10,
+      10,
+      windowWidth / 4,
+      windowHeight
+    );
+    pop();
+  }
+
+  // Print always showing text
   push();
   let fps = frameRate();
   fill(255);
   stroke(255);
   text("FPS: " + fps.toFixed(2), 10, height - 10);
+  text("Simulation speed", 10, windowHeight - windowHeight / 10 - 10);
+
+  text("Simulation accuracy", 10, windowHeight - windowHeight / 6 - 10);
   pop();
 
   // Draw the planets
@@ -418,9 +475,13 @@ function draw() {
 }
 
 function runStep() {
-  const deltaTime = 10 * (timeSlider.value() as number);
+  const deltaTime =
+    10 *
+    (timeSlider.value() as number) *
+    ((accuracySlider.value() as number) / initialAccuracySlider);
+  const accuracy = 1 / (accuracySlider.value() as number);
   for (let i = 0; i < deltaTime; i++) {
-    bodies.forEach((body) => body.applyPhysics(bodies, 0.1));
+    bodies.forEach((body) => body.applyPhysics(bodies, accuracy));
   }
 }
 
@@ -501,6 +562,8 @@ function keyPressed() {
     bodies.forEach((body) => {
       body.prev_positions = [];
     });
+  } else if (key === "h") {
+    showText = !showText;
   }
 }
 
