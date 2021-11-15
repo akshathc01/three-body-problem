@@ -24,7 +24,7 @@ let shiftHeld: boolean = false;
 let savePrevious: boolean = false;
 let showText: boolean = true;
 let selectedInitialState: number = 0;
-const numInitialStates: number = 6;
+const numInitialStates: number = 7;
 const numSkips: number = 1000;
 
 // Physics vars
@@ -373,6 +373,26 @@ function reset() {
         createVector(0, 0),
         null,
         3
+      ),
+    ];
+  } else if (selectedInitialState == 6) {
+    // Earth-moon system
+    const earthMass = 2;
+    const moonMass = 0.5;
+    bodies = [
+      new PointMass(
+        earthTrailColor,
+        earthImage,
+        earthMass,
+        createVector(width / 2, height / 2 - 40),
+        createVector(0.75, 0)
+      ),
+      new PointMass(
+        moonTrailColor,
+        moonImage,
+        moonMass,
+        createVector(width / 2, height / 2 + 138),
+        createVector(-3, 0)
       ),
     ];
   }
