@@ -8,7 +8,7 @@ var bodies;
 var savedPrevPos = [];
 var selectedBody;
 var newVelocity;
-var shouldRun = false;
+var shouldRun = true;
 var showVel = false;
 var showAccel = false;
 var showForces = false;
@@ -16,8 +16,36 @@ var shiftHeld = false;
 var savePrevious = false;
 var showText = true;
 var selectedInitialState = 0;
-var numInitialStates = 6;
+var backgroundColorDark;
+var backgroundColorLight;
+var stars = [];
+var starRadii = [];
+var starAlpha = [];
+var sceneNames = {
+    0: "Earth + moon system",
+    1: "Two body #1",
+    2: "Two body #2",
+    3: "Two body at lower right",
+    4: "Three body #1",
+    5: "Three body #2",
+    6: "Three body Figure 8",
+};
+var numInitialStates = 7;
 var numSkips = 1000;
+var instructionText = "Instructions:\n" +
+    "P to pause/unpause\n" +
+    "Right arrow to run a single step of the sim\n" +
+    "R to reset sim to original state\n" +
+    "A to show acceleration vectors\n" +
+    "V to show velocity vectors\n" +
+    "F to show force vectors\n" +
+    "S to save trails from previous run\n" +
+    "C to clear trails (Improves performance if lagging)\n" +
+    "+ to move forward through predefined states\n" +
+    "- to move backward through predefined states\n" +
+    "Shift + click to create new planet\n" +
+    "Click + drag on planet to adjust velocity vector\n" +
+    "H to hide this text";
 var G = 10;
 var fudge = 0.01;
 var timeSlider;
@@ -115,10 +143,14 @@ var PointMass = (function () {
     };
     PointMass.prototype.renderGlow = function () {
         push();
-        fill(this.alphaColor);
+        noStroke();
+        var lerpFactor = 2 / this.radius();
         for (var i = 0; i < this.radius(); i++) {
+            this.alphaColor.setAlpha(lerp(1, 255, lerpFactor));
+            fill(this.alphaColor);
             circle(this.position.x, this.position.y, i * 1.5);
         }
+        this.alphaColor.setAlpha(255);
         pop();
     };
     PointMass.prototype.render = function () {
@@ -138,19 +170,36 @@ var PointMass = (function () {
 }());
 function reset() {
     if (selectedInitialState == 0) {
+        var earthMass = 2;
+        var moonMass = 0.5;
+        bodies = [
+            new PointMass(earthTrailColor, earthImage, earthMass, createVector(width / 2, height / 2 - 40), createVector(0.75, 0)),
+            new PointMass(moonTrailColor, moonImage, moonMass, createVector(width / 2, height / 2 + 138), createVector(-3, 0)),
+        ];
+    }
+    else if (selectedInitialState == 1) {
         var masses = 1;
         bodies = [
             new PointMass(sunTrailColor, sunImage, masses, createVector(width / 2 + 100, height / 2), createVector(-0.2, 0.6)),
             new PointMass(earthTrailColor, earthImage, masses, createVector(width / 2 - 100, height / 2), createVector(0.2, -0.6)),
         ];
     }
-    else if (selectedInitialState == 1) {
+    else if (selectedInitialState == 2) {
         bodies = [
             new PointMass(sunTrailColor, sunImage, 1, createVector(width / 2 + 100, height / 2), createVector(0, 1)),
             new PointMass(earthTrailColor, earthImage, 1, createVector(width / 2 - 100, height / 2), createVector(0, -1)),
         ];
     }
-    else if (selectedInitialState == 2) {
+    else if (selectedInitialState == 3) {
+        var f8Pos = createVector(0.97000436 * 300, -0.24308753 * 300);
+        var f8Vel = createVector(-0.93240737 / 2, 0.86473146 / 2);
+        var masses = 1;
+        bodies = [
+            new PointMass(sunTrailColor, sunImage, masses, createVector(width / 2, height / 2), f8Vel),
+            new PointMass(earthTrailColor, earthImage, masses, createVector(width / 2 + f8Pos.x, height / 2 - f8Pos.y), p5.Vector.mult(f8Vel, -1)),
+        ];
+    }
+    else if (selectedInitialState == 4) {
         var masses = 1.0;
         var r = 100;
         var v = 1.0;
@@ -161,7 +210,7 @@ function reset() {
             new PointMass(moonTrailColor, moonImage, masses, createVector(width / 2 - sin(60) * r, height / 2 - cos(60) * r), createVector(-cos(60) * v, sin(60) * v)),
         ];
     }
-    else if (selectedInitialState == 3) {
+    else if (selectedInitialState == 5) {
         var f8Pos = createVector(0.97000436 * 300, -0.24308753 * 300);
         var f8Vel = createVector(-0.93240737, 0.86473146);
         var masses = 1;
@@ -171,16 +220,7 @@ function reset() {
             new PointMass(moonTrailColor, moonImage, masses, createVector(width / 2 - f8Pos.x, height / 2 + f8Pos.y), p5.Vector.div(f8Vel, -2)),
         ];
     }
-    else if (selectedInitialState == 4) {
-        var f8Pos = createVector(0.97000436 * 300, -0.24308753 * 300);
-        var f8Vel = createVector(-0.93240737 / 2, 0.86473146 / 2);
-        var masses = 1;
-        bodies = [
-            new PointMass(sunTrailColor, sunImage, masses, createVector(width / 2, height / 2), f8Vel),
-            new PointMass(earthTrailColor, earthImage, masses, createVector(width / 2 + f8Pos.x, height / 2 - f8Pos.y), p5.Vector.mult(f8Vel, -1)),
-        ];
-    }
-    else if (selectedInitialState == 5) {
+    else if (selectedInitialState == 6) {
         var f8Pos = createVector(0.97000436 * 300, -0.24308753 * 300);
         var f8Vel = createVector(-0.93240737, 0.86473146);
         var masses = 0.3;
@@ -203,18 +243,52 @@ function setup() {
     accuracySlider.style("width", "100px");
     textFont("Roboto");
     textSize(16);
+    backgroundColorDark = color(9 / 1.75, 26 / 1.75, 41 / 1.75);
+    backgroundColorLight = color(21 / 1.75, 47 / 1.75, 68 / 1.75);
+    generateStars();
     reset();
+}
+function generateStars() {
+    stars = [];
+    starRadii = [];
+    starAlpha = [];
+    for (var i = 0; i < 100; i++) {
+        stars.push(createVector(random(0, windowWidth), random(0, windowHeight)));
+        starRadii.push(random(1, 6));
+        starAlpha.push(random(1, 200));
+    }
 }
 function windowResized() {
     resizeCanvas(windowWidth, windowHeight);
 }
+function drawBackground() {
+    var starColor = color(255, 255, 255);
+    push();
+    translate(windowWidth / 2, windowHeight / 2);
+    var ratio = windowHeight / windowWidth;
+    for (var x = windowWidth * 2; x >= 0; x -= 100) {
+        var c = lerpColor(backgroundColorDark, backgroundColorLight, x / windowWidth);
+        noStroke();
+        fill(c);
+        ellipse(0, 0, x, x * ratio);
+    }
+    pop();
+    push();
+    noStroke();
+    stars.forEach(function (star, idx) {
+        starColor.setAlpha(starAlpha[idx]);
+        fill(starColor);
+        circle(star.x, star.y, starRadii[idx]);
+    });
+    pop();
+}
 function draw() {
-    background(10);
+    drawBackground();
     if (showText) {
         push();
         fill(255);
         stroke(255);
-        text("Instructions:\nP to pause/unpause\nRight arrow to run a single step of the sim\nR to reset sim to original state\nA to show acceleration vectors\nV to show velocity vectors\nF to show force vectors\nS to save trails from previous run\nC to clear trails\n+ to move forward through predefined states\n- to move backward through predefined states\nShift + click to create new planet\nClick + drag on planet to adjust velocity vector\nH to hide this text", 10, 10, windowWidth / 4, windowHeight);
+        text(instructionText, 10, 10, windowWidth / 4, windowHeight);
         pop();
     }
     push();
@@ -224,6 +298,8 @@ function draw() {
     text("FPS: " + fps.toFixed(2), 10, height - 10);
     text("Simulation speed", 10, windowHeight - windowHeight / 10 - 10);
     text("Simulation accuracy", 10, windowHeight - windowHeight / 6 - 10);
+    textAlign(CENTER);
+    text("Scene: " + sceneNames[selectedInitialState], windowWidth / 2, 20);
     pop();
     bodies.forEach(function (body) {
         body.renderGlow();
@@ -300,6 +376,7 @@ function keyPressed() {
     }
     else if (keyCode === 187) {
         selectedInitialState = (selectedInitialState + 1) % numInitialStates;
+        generateStars();
         reset();
     }
     else if (keyCode === 189) {
@@ -307,6 +384,7 @@ function keyPressed() {
             selectedInitialState === 0
                 ? numInitialStates - 1
                 : selectedInitialState - 1;
+        generateStars();
         reset();
     }
     if (key === "p") {
