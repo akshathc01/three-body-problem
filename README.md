@@ -1,7 +1,7 @@
 
 # Three body problem
 
-A repo for a simulation of the 3-body problem, for SCI 206.
+A repo for a simulation of the 3-body problem.
 
 Follow the instructions from the repo this was forked from (https://github.com/Gaweph/p5-typescript-starter) in order to run.
 
